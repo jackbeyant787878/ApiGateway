@@ -18,8 +18,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./src/ApiGateway
-          file: ./src/ApiGateway/Dockerfile
+          context: .
+          file: ./ApiGateway/Dockerfile
           push: true
           tags: |
             ${{ secrets.TENCENT_REGISTRY_GATEWAY }}:latest
