@@ -61,7 +61,7 @@ jobs:
             kubectl create secret docker-registry tcr-secret -n gateway \
               --docker-server=ccr.ccs.tencentyun.com \
               --docker-username=${{ secrets.TENCENT_REGISTRY_USERNAME }} \
-              --docker-password=${{ secrets.TENCENT_REGISTRY_PASSWORD }}
+              --docker-password="${{ secrets.TENCENT_REGISTRY_PASSWORD }}"
 
             # 3. 应用 ConfigMap
             kubectl apply -f gateway-config.yaml
