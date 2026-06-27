@@ -20,7 +20,14 @@ builder.Services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<
 builder.Services.AddReverseProxy();
 
 // 3. 引入自定义扩展（组件解耦）
+
+#if DEBUG
+//本地开发环境不启用身份验证和授权
+#else
 builder.Services.AddGatewayAuth(builder.Configuration);
+#endif
+
+
 builder.Services.AddConsulRegistry(builder.Configuration);      //Consul自注册扩展
 // .NET 10 原生限流
 builder.Services.AddRateLimiter(options => {
@@ -41,8 +48,15 @@ app.UseMiddleware<TraceIdMiddleware>(); // 1. 最外层注入 TraceId
 
 app.UseRateLimiter();                  // 2. 限流挡板（防止恶意刷）
 
+#if DEBUG
+//本地开发环境不启用身份验证和授权
+#else
+
 app.UseAuthentication();               // 3. 身份验证
 app.UseAuthorization();                // 4. 权限授权
+#endif
+
+
 
 // 6. 激活 YARP 终点路由转发
 app.MapGatewayEndpoints(app.Configuration); //映射内部基础设施端点
