@@ -1,0 +1,79 @@
+name: Deploy ApiGateway
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to Tencent Cloud Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ccr.ccs.tencentyun.com
+          username: ${{ secrets.TENCENT_REGISTRY_USERNAME }}
+          password: ${{ secrets.TENCENT_REGISTRY_PASSWORD }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./src/ApiGateway
+          file: ./src/ApiGateway/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.TENCENT_REGISTRY_GATEWAY }}:latest
+            ${{ secrets.TENCENT_REGISTRY_GATEWAY }}:${{ github.sha }}
+          provenance: false
+          sbom: false
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy k8s manifests to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          source: "k8s-gateway/*"
+          target: "/tmp/gateway-deploy/"
+
+      - name: Deploy and verify via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            set -e
+            cd /tmp/gateway-deploy/k8s-gateway
+
+            # 1. 创建命名空间（如已存在会幂等）
+            kubectl apply -f gateway-namespace.yaml
+
+            # 2. 创建镜像拉取凭据（动态创建）
+            kubectl delete secret tcr-secret -n gateway --ignore-not-found
+            kubectl create secret docker-registry tcr-secret -n gateway \
+              --docker-server=ccr.ccs.tencentyun.com \
+              --docker-username=${{ secrets.TENCENT_REGISTRY_USERNAME }} \
+              --docker-password=${{ secrets.TENCENT_REGISTRY_PASSWORD }}
+
+            # 3. 应用 ConfigMap
+            kubectl apply -f gateway-config.yaml
+
+            # 4. 替换镜像标签并部署
+            sed -i "s|image:.*|image: ${{ secrets.TENCENT_REGISTRY_GATEWAY }}:${{ github.sha }}|g" gateway-deployment.yaml
+            kubectl apply -f gateway-deployment.yaml
+            kubectl apply -f gateway-service.yaml
+
+            # 5. 等待滚动更新完成
+            kubectl rollout status deployment/gateway-deployment -n gateway --timeout=3m
+
+            # 6. 输出状态
+            kubectl get pods -n gateway -o wide
+            kubectl get svc -n gateway

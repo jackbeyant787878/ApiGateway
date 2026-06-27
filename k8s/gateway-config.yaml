@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: gateway
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:5040"
+  CONSUL__ADDRESS: "http://consul-server.consul.svc.cluster.local:8500"
+  CONSUL__SERVICE__NAME: "ApiGateway"
+  CONSUL__SERVICE__ADDRESS: "gateway-svc.gateway.svc.cluster.local"
+  CONSUL__SERVICE__PORT: "5040"
+  CONSUL__SERVICE__HEALTHCHECKPATH: "/gateway/health"
+  JWT__ISSUER: "http://auth-svc.identity.svc.cluster.local:5008"
+  KEYSETTINGS__BASEDIRECTORY: "/app/keys"
+  GATEWAYSETTINGS__MAXCONNECTIONSPERSERVER: "5000"
+  GATEWAYSETTINGS__HTTPREQUESTTIMEOUTSECONDS: "30"
