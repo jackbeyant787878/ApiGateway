@@ -4,7 +4,7 @@
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 USER $APP_UID
 WORKDIR /app
-EXPOSE 5040                          # 网关实际监听端口
+EXPOSE 5040
 
 
 # 此阶段用于生成服务项目
