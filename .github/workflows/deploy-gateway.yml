@@ -40,7 +40,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USERNAME }}
           password: ${{ secrets.SERVER_PASSWORD }}
-          source: "k8s-gateway/*"
+          source: "k8s/*"
           target: "/tmp/gateway-deploy/"
 
       - name: Deploy and verify via SSH
@@ -51,7 +51,7 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
             set -e
-            cd /tmp/gateway-deploy/k8s-gateway
+            cd /tmp/gateway-deploy/k8s
 
             # 1. 创建命名空间（如已存在会幂等）
             kubectl apply -f gateway-namespace.yaml
