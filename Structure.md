@@ -45,6 +45,8 @@
 - 无状态签发Token，支撑网关分布式验签，无需集中式Session存储。
 
 ## 2\.3 Consul注册中心（服务治理核心）
+<img width="1911" height="668" alt="image" src="https://github.com/user-attachments/assets/58e8a148-b4c6-469d-a527-b529f7268e1e" />
+
 
 统一承载全体系微服务的注册、健康检查与服务发现能力，现已部署至K3s集群内部，彻底解决前期Docker宿主机部署的网络通信异常问题，容器网络统一互通。
 
@@ -132,37 +134,9 @@
 
 后续可平滑演进为**纯K8s原生云原生架构**：下线Consul，复用K8s Service\+CoreDNS服务发现；替换为K8s Ingress网关；用K8s Secret替代NFS密钥存储，实现架构极简、运维标准化。
 
-# 七、微服务体系架构图（可直接复制到Mermaid工具渲染）
+# 七、微服务体系架构图
 
-下方为完整架构流程图，复制代码至任意Mermaid在线工具即可生成可视化架构图：
-
-```Plain Text
-graph TD
-    A[客户端] -- HTTPS请求gateway.domain.com/{服务名} --> B[YARP自研API网关.NET10 统一入口]
-    
-    B -->|1.JWT验签2.限流熔断3.链路追踪| C{Consul注册中心}
-    C -- 动态获取健康实例 --> D[业务微服务集群Payment/Order/User等]
-    
-    E[IdentityService认证中心JWT签发+密钥轮换] --> F[NFS共享密钥存储ReadWriteMany持久卷]
-    F -- 只读加载公钥 --> B
-    
-    %% 部署底座
-    subgraph K3s 容器集群
-        B
-        C
-        D
-        E
-    end
-    
-    %% 运维流水线
-    G[GitHub Actions CI/CD] --> H[腾讯云CCR镜像仓库]
-    H --> K3s
-    
-    %% 健康探测
-    B -.->|/gateway/health| C
-    D -.->|服务健康上报| C
-    
-```
+<img width="990" height="721" alt="image" src="https://github.com/user-attachments/assets/ed4e388c-6440-44d4-ba5e-c5a5d420f994" />
 
 # 八、最终整体总结
 
