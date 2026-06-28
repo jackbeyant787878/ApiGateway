@@ -17,7 +17,7 @@ builder.Services.AddSingleton<YarpConfigProvider>();
 builder.Services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<YarpConfigProvider>());
 
 // 注入 YARP 核心服务
-builder.Services.AddReverseProxy();
+builder.Services.AddReverseProxy().AddGatewayClaimsTransformer();//
 
 // 3. 引入自定义扩展（组件解耦）
 

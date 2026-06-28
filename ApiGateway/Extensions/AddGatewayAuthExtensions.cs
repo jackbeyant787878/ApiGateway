@@ -36,6 +36,13 @@ namespace ApiGateway.Extensions
 
             services.AddAuthorization(options =>
             {
+                /*
+                 从 Consul 捞出来的所有服务，全量、强制性地钉死了 "GatewayAuthPolicy" 鉴权策略
+                 会导致登录服务接口也必须携带 JWT 才能访问，这显然不合理。
+                 POST /IdentityServiceCenter/connect/token
+                 
+
+                 */
                 options.AddPolicy("GatewayAuthPolicy", policy => policy.RequireAuthenticatedUser());
             });
 

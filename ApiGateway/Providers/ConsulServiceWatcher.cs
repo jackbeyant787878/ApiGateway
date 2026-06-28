@@ -28,7 +28,7 @@ namespace ApiGateway.Providers
             {
                 try
                 {
-                    // 1. 从 Consul 获取所有健康的服务
+                    // 1.从 Consul 获取所有健康的服务
                     var servicesResponse = await _consulClient.Catalog.Services(stoppingToken);
                     var routes = new List<RouteConfig>();
                     var clusters = new List<ClusterConfig>();
@@ -41,6 +41,11 @@ namespace ApiGateway.Providers
                         // 获取该服务下的所有健康节点
                         var instancesResponse = await _consulClient.Health.Service(serviceName, null, true, stoppingToken);
 
+                        // 从健康节点中,探查该服务是否带有“允许匿名”的标签
+                        var serviceTags = instancesResponse.Response.FirstOrDefault()?.Service?.Tags ?? Array.Empty<string>();
+                        bool allowAnonymous = serviceTags.Contains("anonymous_allowed", StringComparer.OrdinalIgnoreCase);
+
+
                         var destinations = new Dictionary<string, DestinationConfig>();
                         foreach (var instance in instancesResponse.Response)
                         {
@@ -52,7 +57,7 @@ namespace ApiGateway.Providers
 
                         if (destinations.Count == 0) continue;
 
-                        // 2. 核心避坑：构建符合前端约定的 路由/服务 规则
+                        // 2. 核心避坑:构建符合前端约定的 路由/服务 规则
                         // 规则：网关域名/order-service/{**catch-all} -> 转发
                         var route = new RouteConfig
                         {
@@ -60,7 +65,8 @@ namespace ApiGateway.Providers
                             ClusterId = $"{serviceName}_cluster",
                             Match = new RouteMatch { Path = $"/{serviceName}/{{**catch-all}}" },
                             Order = 10,
-                            AuthorizationPolicy= "GatewayAuthPolicy", // 绑定鉴权,
+                            //动态赋值:如果是登录/公开微服务，就不挂载鉴权策略；其余业务服务强制挂载！
+                            AuthorizationPolicy = allowAnonymous ? null : "GatewayAuthPolicy", // 绑定鉴权,
                             RateLimiterPolicy= "GatewayRateLimitPolicy" // 绑定限流
                         }
                         .WithTransformPathRemovePrefix(prefix: $"/{serviceName}"); // 裁剪前缀
@@ -82,7 +88,7 @@ namespace ApiGateway.Providers
                     _logger.LogError(ex, "从 Consul 刷新路由表时发生异常");
                 }
 
-                // 频率控制：每 5 秒轮询一次（生产环境建议配合 Consul 的 Wait 参数做长轮询，此处为简化演示）
+                // 频率控制:每 5 秒轮询一次（生产环境建议配合 Consul 的 Wait 参数做长轮询，此处为简化演示）
                 await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             }
         }
