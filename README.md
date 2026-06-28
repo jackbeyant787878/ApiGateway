@@ -1,4 +1,4 @@
-# 微服务体系整体架构完整总结（含架构流程图）
+# ApiGateWay 落地方案和 微服务体系整体架构完整总结
 
 # 一、整体架构设计目标与核心原则
 
@@ -132,37 +132,10 @@
 
 后续可平滑演进为**纯K8s原生云原生架构**：下线Consul，复用K8s Service\+CoreDNS服务发现；替换为K8s Ingress网关；用K8s Secret替代NFS密钥存储，实现架构极简、运维标准化。
 
-# 七、微服务体系架构图（可直接复制到Mermaid工具渲染）
+# 七、微服务体系架构图
 
-下方为完整架构流程图，复制代码至任意Mermaid在线工具即可生成可视化架构图：
+<img width="917" height="713" alt="image" src="https://github.com/user-attachments/assets/3994acfd-9288-4834-bba0-2d2888bd0f6e" />
 
-```Plain Text
-graph TD
-    A[客户端] -- HTTPS请求gateway.domain.com/{服务名} --> B[YARP自研API网关.NET10 统一入口]
-    
-    B -->|1.JWT验签2.限流熔断3.链路追踪| C{Consul注册中心}
-    C -- 动态获取健康实例 --> D[业务微服务集群Payment/Order/User等]
-    
-    E[IdentityService认证中心JWT签发+密钥轮换] --> F[NFS共享密钥存储ReadWriteMany持久卷]
-    F -- 只读加载公钥 --> B
-    
-    %% 部署底座
-    subgraph K3s 容器集群
-        B
-        C
-        D
-        E
-    end
-    
-    %% 运维流水线
-    G[GitHub Actions CI/CD] --> H[腾讯云CCR镜像仓库]
-    H --> K3s
-    
-    %% 健康探测
-    B -.->|/gateway/health| C
-    D -.->|服务健康上报| C
-    
-```
 
 # 八、最终整体总结
 
