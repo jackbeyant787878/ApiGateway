@@ -1,9 +1,12 @@
 using ApiGateway.Extensions;
+using ApiGateway.Handlers;
 using ApiGateway.Middlewares;
+using ApiGateway.Policies;
 using ApiGateway.Providers;
 using Microsoft.AspNetCore.RateLimiting;
 using Serilog;
 using Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Forwarder;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,8 +19,16 @@ builder.Host.UseSerilog();
 builder.Services.AddSingleton<YarpConfigProvider>();
 builder.Services.AddSingleton<IProxyConfigProvider>(sp => sp.GetRequiredService<YarpConfigProvider>());
 
+
+// 注册单例策略状态管理器（保证熔断器状态全局共享不丢失）
+builder.Services.AddSingleton<GatewayPolicyProvider>();
+
+// 强行将 YARP 的客户端工厂替换为支持接口重绑定的高级工厂
+builder.Services.AddSingleton<IForwarderHttpClientFactory, PollyForwarderHttpClientFactory>();
+
+
 // 注入 YARP 核心服务
-builder.Services.AddReverseProxy().AddGatewayClaimsTransformer();//
+builder.Services.AddReverseProxy().AddGatewayClaimsTransformer();
 
 // 3. 引入自定义扩展（组件解耦）
 
