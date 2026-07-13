@@ -1,263 +1,172 @@
 # API Gateway Core Responsibilities, JWT Public Key Verification Principles and Upstream/Downstream Request Processing Mechanisms
 
-## 1\. API Gateway Core Positioning and Responsibilities \(Gateway\-Specific Focus\)
+# 1\. Core Positioning and Responsibilities of API Gateway \(Pure Gateway Focused\)
 
-The **\.NET 10 YARP self\-developed gateway** serves as the **unique entry point for full\-link traffic** in the entire architecture\. All client requests must pass through the gateway for admission control\. The gateway**does not process any business logic** and is fully responsible for all**non\-business cross\-cutting governance, security verification, and traffic forwarding**, acting as the security barrier and traffic scheduling hub for the microservice ecosystem\.
+The self\-developed gateway built on **\.NET 10 YARP** in this architecture serves as the **only entry point for full\-link traffic**\. All client requests must pass through the gateway for access admission\. The gateway **does not process any business logic**, and is fully responsible for all **non\-business cross\-cutting governance, security verification, and traffic forwarding**\. It acts as the security barrier and traffic scheduling hub for the microservice system\.
 
-The gateway focuses exclusively on four core capabilities:
+The core responsibilities of the gateway are strictly focused on four key capabilities:
 
-**1\. Identity Security Admission \(Core Capability\)**
+**1\.1 Identity Security Admission \(Core Capability\)**
 
-Unifies interception of all requests, completes legal verification of JWT tokens, rejects illegal, expired, and tampered requests, and achieves centralized global authentication and authorization\.
+Unified interception of all requests, completing legality verification of JWT tokens, rejecting illegal, expired and tampered requests, and realizing centralized global authentication and authorization\.
 
-**2\. Full\-Dimensional Traffic Governance**
+**1\.2 Full\-dimensional Traffic Governance**
 
-Integrates interface rate limiting, request circuit breaking, and timeout control to block malicious high\-frequency requests and faulty traffic, ensuring the stability of downstream microservices\.
+Integrates interface rate limiting, request circuit breaking and timeout control to block malicious high\-frequency requests and faulty traffic, ensuring the stability of downstream microservices\.
 
-**3\. Dynamic Traffic Forwarding**
+**1\.3 Dynamic Traffic Forwarding**
 
-Perceives healthy downstream service instances in real time via Consul, dynamically generates routing rules, automatically forwards requests and truncates route prefixes, fully transparent to client\-side applications\.
+Perceives the health status of downstream service instances in real time via Consul, dynamically generates routing rules, automatically completes request forwarding and route prefix trimming, and achieves full transparency for clients\.
 
-**4\. Unified Link Observability**
+**1\.4 Full\-link Observability Centralization**
 
-Injects global TraceId uniformly, records full\-link request logs and exception logs, and provides a unified entry for troubleshooting\. Downstream services are exempt from repetitive implementation of basic observability capabilities\.
+Uniformly injects TraceId, records full\-link request logs and exception logs, and provides a unified entry for troubleshooting\. Downstream services are exempt from repeated implementation of basic observability capabilities\.
 
-```mermaid
-graph LR
-Client -- Full Traffic Entry --> Gateway
-Gateway -- Identity Security --> Security
-Gateway -- Traffic Governance --> Traffic
-Gateway -- Dynamic Forwarding --> Discovery
-Gateway -- Link Observability --> Trace
-Security --> Service
-Traffic --> Service
-Discovery --> Service
-Trace --> Service```
+# 2\. Underlying Core Principles of Gateway JWT Public Key Verification
 
-```mermaid
-graph LR
-Client[Client Request] -- Full Traffic Entry --> Gateway[.NET YARP Gateway]
-Gateway -- Identity Security Admission --> Security[Security Control]
-Gateway -- Traffic Governance --> Traffic[Rate Limit & Circuit Break]
-Gateway -- Dynamic Forwarding --> Discovery[Consul Discovery]
-Gateway -- Link Observability --> Trace[TraceId & Logging]
-Security & Traffic & Discovery & Trace -- Valid Traffic --> Service[Downstream Microservices]
-```
+## 2\.1 Basic Key System Mechanism
 
-```mermaid
-graph LR
-A[Client Request] -- Full traffic entry --> B[.NET YARP Gateway]
-B -- 1.Identity Auth --> C[Security Admission]
-B -- 2.Traffic Governance --> D[Rate Limit & Circuit Break]
-B -- 3.Dynamic Routing --> E[Consul Service Discovery]
-B -- 4.Link Observation --> F[TraceId & Logging]
-C & D & E & F -- Valid Traffic --> G[Downstream Microservices]```
+The system adopts the **RSA asymmetric encryption mechanism** with strict separation of public and private key responsibilities to fully ensure security:
 
-## 2\. Underlying Core Principles of Gateway JWT Public Key Verification
+- **Private Key \(Exclusive to Authentication Center\)**: Used exclusively for **JWT token issuance and signing**\. It is never exposed, synchronized or shared externally\.
 
-### 2\.1 Basic Key System Mechanism
+- **Public Key \(Exclusive to API Gateway\)**: Used for **JWT token verification and legality validation**\. It only has verification privileges with no token issuance permission\.
 
-The system adopts the **RSA asymmetric encryption algorithm** with strictly divided public and private key responsibilities to ensure maximum security:
+The gateway implements **stateless verification** throughout the process without relying on any third\-party interfaces or caching user sessions\. All verification logic depends solely on the locally loaded RSA public key\.
 
-- **Private Key \(Held exclusively by the authentication center\)**: Used exclusively for **JWT token issuance and signing**\. Never exposed, synchronized, or shared externally\.
+## 2\.2 Multi\-Public\-Key Compatibility Logic \(Core Architectural Highlight\)
 
-- **Public Key \(Held exclusively by the gateway\)**: Used for **JWT token verification and legitimacy validation**\. Possesses only verification capabilities with no token issuance privileges\.
+During startup, the gateway automatically loads a dual public key system to eliminate service interruption risks caused by key rotation:
 
-The gateway implements **stateless verification** throughout the process without relying on any third\-party APIs or caching user sessions\. All validation is completed locally via the loaded RSA public key\.
+- **Active Public Key**: Validates the latest issued JWT tokens, serving as the core verification key\. Service startup fails if this key is missing\.
 
-```mermaid
-graph TD
-AuthCenter -- Private Key Sign --> JWT
-JWT -- Token Delivery --> Client
-Client -- Carry JWT --> Gateway
-Gateway -- Public Key Verify --> Check
-Check -- Valid --> Pass
-Check -- Invalid --> Reject
-```
+- **Historical Archived Public Key**: Compatible with unexpired old tokens issued before key rotation, ensuring seamless service availability during iteration and upgrade\.
 
-```mermaid
-graph TD
-AuthCenter[Authentication Center] -- Private Key Sign --> JWT[Issue JWT Token]
-JWT -- Token Delivery --> Client[Client Side]
-Client -- Bring JWT --> Gateway[API Gateway]
-Gateway -- Local Public Key Verify --> Check{Signature Valid?}
-Check -- Yes --> Pass[Release Request]
-Check -- No --> Reject[Reject 401 Unauthorized]
-```
+Underlying principle: JWT signatures are uniquely generated by the private key and strongly bound to the corresponding key\. The gateway verifies token signatures sequentially through multiple public key sets\. A token is deemed legitimate if **any public key verification passes**, enabling smooth and zero\-downtime key migration\.
 
-```mermaid
-graph TD
-A[Authentication Center] -- Hold Private Key --> B[JWT Sign & Issue Token]
-B -- Token Delivery --> C[Client]
-C -- Carry JWT Token --> D[API Gateway]
-D -- Hold Public Key --> E[Stateless Signature Verification]
-E -- Valid --> F[Release Request]
-E -- Invalid --> G[Reject 401]```
+## 2\.3 Complete Gateway Verification and Release Workflow
 
-### 2\.2 Multi\-Public\-Key Compatibility Logic \(Core Architectural Highlight\)
+The gateway executes a standardized, synchronously blocked and full\-coverage verification chain for every client request:
 
-During startup, the gateway automatically loads a dual public key set to eliminate service interruption caused by key rotation:
+**Step 1: Request Interception**
 
-- **Active Public Key**: Validates newly issued JWT tokens and serves as the primary verification key\. Service startup fails if this key is missing\.
+All requests with business routes are intercepted by the gateway; anonymous health check interfaces are released directly without verification\.
 
-- **Legacy Archive Public Key**: Compatibility support for unexpired old tokens issued before key rotation, ensuring zero\-service\-interruption iteration\.
+**Step 2: Token Parsing**
 
-Underlying principle: JWT signatures are uniquely generated and strongly bound to the corresponding private key\. The gateway verifies token signatures sequentially via multiple public key sets\. A token is deemed valid if **any public key passes verification**, enabling smooth and seamless key migration\.
+Extract the Bearer Token from the request Header, and parse the three core components of JWT: header, payload and signature\.
 
-### 2\.3 Complete Gateway Verification and Release Workflow
+**Step 3: Legality Verification**
 
-The gateway executes a standardized synchronous blocking verification pipeline for every client request with zero omissions:
+Based on the locally loaded RSA public key list, verify signature integrity \(anti\-tampering\), issuer legitimacy and token expiration status\.
 
-**1\. Request Interception**: All business route requests are intercepted by the gateway; anonymous health check endpoints are directly released\.
+**Step 4: Policy Authorization**
 
-**2\. Token Parsing**: Extracts Bearer Token from request headers and parses the three JWT components: header, payload, and signature\.
+Match the global gateway authorization policy to confirm the request is initiated by an authenticated legitimate user\.
 
-**3\. Legitimacy Verification**: Validates signature integrity, issuer legitimacy, and token expiration using the locally loaded RSA public key list\.
+**Step 5: Traffic Risk Control**
 
-**4\. Policy Authorization**: Matches global gateway authorization policies to verify authenticated user legitimacy\.
+Execute token bucket rate limiting and circuit breaking rules to check for request threshold overflow and downstream circuit breaking status\.
 
-**5\. Traffic Risk Control**: Executes token\-bucket rate limiting and circuit\-breaking rules to check for threshold overflow and downstream circuit break status\.
+**Step 6: Request Release**
 
-**6\. Request Release**: Generates a global TraceId and preprocesses request parameters only after all verification items pass\.
+After all verifications pass, generate a global unique TraceId and preprocess request parameters for downstream forwarding\.
 
-**Failure Fallback Mechanism**: Requests with invalid signatures, expired tokens, insufficient permissions, or triggered rate limiting/circuit breaking are directly rejected by the gateway with standard error codes such as 401/429\. **No invalid requests reach downstream microservices**\.
+**Failure Fallback Mechanism**: Requests with invalid signatures, expired tokens, insufficient permissions or triggered rate limiting/circuit breaking are directly intercepted by the gateway and return standard error codes such as 401/429\. **No faulty request will reach downstream microservices**\.
 
-```mermaid
-graph TD
-Request -- Intercept --> Gateway
-Gateway -- Parse JWT --> Verify
-Verify -- Auth Check --> Permission
-Permission -- Traffic Control --> Flow
-Flow -- Pass --> Release
-Flow -- Fail --> Block
-```
+# 3\. Downstream Microservice Processing Mechanism After Gateway Release
+
+After the gateway completes all security and traffic verifications and releases the request, downstream microservices **do not need to repeat basic security checks** and can fully focus on business logic processing\. The specific processing mechanism is as follows:
+
+**3\.1 Transparent Request Reception**
+
+The gateway automatically trims route prefixes \(e\.g\., /payment\), forwards standardized interface requests to the corresponding backend service Pods\.
+
+**3\.2 Trusted Traffic Admission**
+
+Downstream services fully trust all requests released by the gateway, eliminating redundant token verification and rate limiting logic to reduce service performance overhead\.
+
+**3\.3 Business Identity Parsing**
+
+Downstream services only need to parse core business identity information \(user ID, permission roles, etc\.\) from the token or request headers transparently transmitted by the gateway to implement fine\-grained business authorization judgment\.
+
+**3\.4 Core Business Execution**
+
+Focus on processing core business scenarios such as order management, payment processing and user services, without paying attention to underlying capabilities including traffic security verification and link tracking\.
+
+**3\.5 Unified Result Response**
+
+Business execution results are returned to the gateway along the original link, and the gateway uniformly responds to the client\.
+
+# 4\. Full\-link Stability and Security Guarantee Mechanisms \(Gateway\-layer Core Protection\)
+
+## 4\.1 Security\-layer Guarantees
+
+- **Least Privilege Security Design**: The gateway only holds public keys without token issuance privileges\. Even if the gateway is compromised, attackers cannot forge legitimate JWT tokens\.
+
+- **Tamper\-proof and Forgery\-proof**: The RSA signature mechanism ensures that any tampering with JWT payloads or token forgery behavior will be intercepted by the gateway as long as the private key is not leaked\.
+
+- **High Availability with Key Compatibility**: The multi\-public\-key mechanism supports dynamic key rotation without service downtime or interruption to normal user requests\.
+
+- **Global Security Centralization**: Unified verification of all external network requests eliminates security risks such as exposed downstream services and unprotected direct access\.
+
+## 4\.2 Traffic and Stability Guarantees
+
+- **Fault Isolation**: YARP built\-in circuit breaking and timeout mechanisms enable fast failure response when downstream services are abnormal, preventing fault propagation and service avalanche\.
+
+- **Traffic Peak Shaving**: Global gateway rate limiting blocks malicious crawler requests and abnormal high\-frequency traffic, stabilizing the load of downstream services\.
+
+- **Dynamic Fault\-tolerant Forwarding**: Real\-time monitoring of Consul healthy instances, automatically removing faulty nodes and only forwarding requests to healthy service Pods\.
+
+- **Traceable Full Link**: The global unique TraceId runs through the gateway and downstream services, enabling rapid differentiation and positioning of faults at the gateway layer or business layer\.
+
+# 5\. Core Summary \(Pure Gateway Focused\)
+
+The API gateway acts as the **security firewall and traffic scheduling hub** of the entire microservice system\. Its core value lies in **centralizing all non\-business general cross\-cutting capabilities**\. It implements stateless, high\-security global identity authentication based on RSA asymmetric public key verification, and solves key iteration and compatibility problems through the multi\-public\-key mechanism\. All requests are layered verified, filtered and governed by the gateway, and only legitimate, compliant and healthy traffic is forwarded to downstream microservices\.
+
+Downstream services are decoupled from underlying capabilities such as security verification, traffic governance and observability, and can focus on core business implementation\. Relying on the gateway’s fault isolation, traffic protection and dynamic scheduling capabilities, the overall microservice architecture achieves core architectural goals of controllable security, stable availability and clear responsibility decoupling\.
+
+# 6\. Advanced Full\-link Execution Flowchart
 
 ```mermaid
-graph TD
-Req[Client Request] -- 1.Intercept --> G[Gateway Capture Request]
-G -- 2.Parse JWT --> Parse[Resolve Header/Payload/Signature]
-Parse -- 3.Legitimacy Check --> Verify[Signature & Expiration Verify]
-Verify -- 4.Policy Auth --> Auth[User Permission Verify]
-Auth -- 5.Traffic Control --> Flow[Rate Limit & Circuit Break]
-Flow -- All Pass --> OK[Generate TraceId & Release]
-Flow -- Any Failed --> Fail[Return 401/429 Block]
-```
 
-```mermaid
-graph TD
-A[Client Request] -- 1.Intercept --> B[Gateway Capture Request]
-B -- 2.Parse Token --> C[Resolve JWT Header/Payload/Signature]
-C -- 3.Verify Legitimacy --> D[Public Key Signature + Expiration Check]
-D -- 4.Policy Auth --> E[User Permission Verification]
-E -- 5.Traffic Control --> F[Rate Limit & Circuit Break Check]
-F -- All Pass --> G[Generate TraceId & Release]
-F -- Any Fail --> H[Return 401/429 Block]```
+flowchart TB
+    A[Client Request Initiation] -- HTTP Request with Bearer JWT --> B[YARP API Gateway Entry]
+    B --> C{Anonymous Health Check Interface?}
+    C -- Yes --> D[Direct Release & Response]
+    C -- No --> E[Request Interception & Standardized Preprocessing]
+    
+    E --> F[JWT Header/Payload/Signature Parsing]
+    F --> G[Multi-Public-Key Sequential Verification]
+    G --> H{Active/Historical Public Key Verified?}
+    H -- No (Invalid/Tampered/Expired) --> I[Return 401 Unauthorized]
+    H -- Yes --> J[Issuer & Standard Claim Validation]
+    
+    J --> K[Global Gateway Authorization Policy Matching]
+    K --> L{Permission Verification Passed?}
+    L -- No --> I
+    L -- Yes --> M[Traffic Risk Control]
+    
+    M --> N[Token Bucket Rate Limiting & Circuit Breaking Check]
+    N --> O{Threshold Exceeded/Circuit Triggered?}
+    O -- Yes --> P[Return 429 Too Many Requests]
+    O -- No --> Q[Global TraceId Injection & Request Standardization]
+    
+    Q --> R[Route Prefix Trimming & Consul Healthy Instance Routing]
+    R --> S[Forward Standardized Request to Downstream Microservice]
+    S --> T[Downstream Service: Trust Traffic & Parse Business Identity]
+    T --> U[Downstream Service: Execute Core Business Logic]
+    U --> V[Business Result Return to Gateway]
+    V --> W[Gateway Unified Response to Client]
 
-## 3\. Downstream Microservice Processing Mechanism After Gateway Release
+    style B fill:#1f2937,color:#ffffff
+    style E fill:#3b82f6,color:#ffffff
+    style G fill:#8b5cf6,color:#ffffff
+    style M fill:#f59e0b,color:#ffffff
+    style S fill:#10b981,color:#ffffff
+    style W fill:#06b6d4,color:#ffffff
+   ```
 
-After the gateway completes all security and traffic validations and releases requests, downstream microservices**do not need to repeat basic security checks** and can fully focus on core business logic execution\. The detailed processing mechanism is as follows:
-
-**1\. Transparent Request Reception**: The gateway automatically truncates route prefixes \(e\.g\., /payment\), forwards standardized API requests to corresponding backend service pods\.
-
-**2\. Trusted Traffic Ingestion**: Downstream services inherently trust all requests released by the gateway, eliminating redundant verification and rate limiting to reduce performance overhead\.
-
-**3\. Business Identity Parsing**: Downstream services extract business identity information \(user ID, role permissions, etc\.\) from gateway\-passed tokens or request headers for business\-level access control judgment\.
-
-**4\. Core Business Execution**: Processes core business scenarios including orders, payments, and user management without caring about underlying capabilities such as traffic security and link tracing\.
-
-**4\. Core Business Execution**: Processes core business scenarios including orders, payments, and user management without caring about underlying capabilities such as traffic security and link tracing\.
-
-**5\. Unified Response Return**: Business execution results are returned to the gateway and responded to clients uniformly by the gateway layer\.
-
-```mermaid
-graph LR
-Gateway[API Gateway] -- Trim Prefix & Forward --> Micro[Downstream Microservice]
-Micro -- Trust Gateway Traffic --> Identity[Parse User Identity]
-Identity -- No Repeat Security Check --> Business[Execute Business Logic]
-Business -- Return Result --> Gateway
-Gateway -- Unified Response --> Client[End Client]
-```
-
-```mermaid
-graph LR
-A[Gateway] -- Trim Prefix & Forward --> B[Downstream Microservice]
-B -- Trust Gateway Traffic --> C[Parse User Identity from Header]
-C -- No Repeat Security Check --> D[Execute Core Business Logic]
-D -- Business Result --> A
-A -- Unified Response --> E[End Client]```
-
-```mermaid
-graph LR
-Gateway -- Forward Request --> MicroService
-MicroService -- Parse User Info --> Business
-Business -- Return Result --> Gateway
-Gateway -- Response --> Client
-```
-
-## 4\. Full\-Link Stability and Security Assurance Mechanisms \(Gateway\-Layer Core Guarantees\)
-
-### 4\.1 Security Assurance Mechanisms
-
-- **Least Privilege Security**: The gateway only holds public keys without token signing privileges\. Even if the gateway is compromised, attackers cannot forge valid JWT tokens\.
-
-- **Tamper and Forgery Resistance**: The RSA signature mechanism ensures that any tampering with JWT payloads or token forgery is intercepted by the gateway, provided the private key remains undisclosed\.
-
-- **Highly Available Key Compatibility**: The multi\-public\-key mechanism supports dynamic key rotation without service downtime or interruption to normal user requests\.
-
-- **Global Security Consolidation**: Uniform verification of all external network requests eliminates security risks caused by exposed or unprotected downstream service endpoints\.
-
-### 4\.2 Traffic and Stability Assurance Mechanisms
-
-- **Fault Isolation**: YARP built\-in circuit breaking and timeout mechanisms enable fast failure responses during downstream service anomalies, preventing fault propagation and service avalanche\.
-
-- **Traffic Peak Shaving**: Global gateway rate limiting blocks malicious crawlers and burst high\-frequency requests, stabilizing downstream service load\.
-
-- **Dynamic Fault\-Tolerant Forwarding**: Monitors Consul healthy instance status in real time, automatically excludes faulty nodes, and forwards traffic only to healthy service pods\.
-
-- **Traceable Full Link**: The unified TraceId runs through the gateway and downstream services, enabling rapid positioning of faults at either the gateway layer or business layer\.
-
-```mermaid
-graph TD
-subgraph Security
-S1[RSA Asymmetric Verify] -- Anti-Tamper & Forgery --> S2[Global Security Entry]
-S3[Multi-Key Rotation] -- Zero Downtime Upgrade --> S4[High Available Auth]
-end
-subgraph Traffic Stability
-T1[Rate Limit & Peak Shaving] -- Protect Service Load --> T2[Malicious Traffic Block]
-T3[Circuit Breaking] -- Fault Isolation --> T4[Prevent Service Avalanche]
-T5[Consul Dynamic Forward] -- Eliminate Fault Nodes --> T6[Stable Traffic Dispatching]
-end
-S2 & S4 & T2 & T4 & T6 --> Final[Stable & Secure Microservice System]
-```
-
-```mermaid
-graph TD
-subgraph Security Protection
-A[RSA Asymmetric Verification] -- Anti-Tamper/Forgery --> A1[Global Security Entry]
-B[Multi-Key Rotation] -- Zero Downtime Update --> B1[High Available Auth]
-end
-subgraph Traffic Stability
-C[Rate Limit & Peak Shaving] -- Block Malicious Traffic --> C1[Load Stabilization]
-D[Circuit Break & Fault Isolation] -- Prevent Avalanche --> D1[Fault Containment]
-E[Consul Dynamic Forwarding] -- Skip Fault Nodes --> E1[High Availability Traffic]
-end
-A1 & B1 & C1 & D1 & E1 --> F[Stable & Secure Microservice Cluster]```
-
-```mermaid
-graph TD
-Verify --> Security
-Rotation --> Security
-Limit --> Stability
-Break --> Stability
-Forward --> Stability
-Security --> Final
-Stability --> Final
-```
-
-## 5\. Core Summary \(Gateway\-Specific Focus\)
-
-The API gateway acts as the **security firewall and traffic scheduling hub** for the entire microservice architecture\. Its core value lies in **unified convergence of all non\-business generic capabilities**\. It implements stateless, high\-security global authentication based on RSA asymmetric public key verification and resolves key iteration compatibility issues via the multi\-public\-key mechanism\.
-
-All requests undergo layered verification, filtering, and governance at the gateway\. Only legitimate, compliant, and healthy traffic is forwarded to downstream microservices\. Downstream services are completely decoupled from underlying security, traffic, and observability capabilities and focus solely on business implementation\. Leveraging the gateway’s fault isolation, traffic protection, and dynamic scheduling capabilities, the overall microservice architecture achieves core architectural goals including security controllability, operational stability, and clear responsibility decoupling\.
+**Flowchart Description**: This advanced full\-link flowchart covers the end\-to\-end request processing lifecycle from client request initiation to final response\. It highlights core gateway capabilities including multi\-public\-key compatible verification, layered security governance, traffic risk control, dynamic healthy instance scheduling, and clarifies the responsibility boundary between the gateway \(non\-business governance\) and downstream microservices \(pure business processing\), fully reflecting the high\-security, high\-availability and decoupled architectural advantages of the system\.
 
 > （注：部分内容可能由 AI 生成）
