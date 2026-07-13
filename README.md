@@ -169,4 +169,4 @@ flowchart TB
 
 **Flowchart Description**: This advanced full\-link flowchart covers the end\-to\-end request processing lifecycle from client request initiation to final response\. It highlights core gateway capabilities including multi\-public\-key compatible verification, layered security governance, traffic risk control, dynamic healthy instance scheduling, and clarifies the responsibility boundary between the gateway \(non\-business governance\) and downstream microservices \(pure business processing\), fully reflecting the high\-security, high\-availability and decoupled architectural advantages of the system\.
 
-> （注：部分内容可能由 AI 生成）
+
