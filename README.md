@@ -24,6 +24,18 @@ Injects global TraceId uniformly, records full\-link request logs and exception 
 
 ```mermaid
 graph LR
+Client -- Full Traffic Entry --> Gateway
+Gateway -- Identity Security --> Security
+Gateway -- Traffic Governance --> Traffic
+Gateway -- Dynamic Forwarding --> Discovery
+Gateway -- Link Observability --> Trace
+Security --> Service
+Traffic --> Service
+Discovery --> Service
+Trace --> Service```
+
+```mermaid
+graph LR
 Client[Client Request] -- Full Traffic Entry --> Gateway[.NET YARP Gateway]
 Gateway -- Identity Security Admission --> Security[Security Control]
 Gateway -- Traffic Governance --> Traffic[Rate Limit & Circuit Break]
@@ -52,6 +64,16 @@ The system adopts the **RSA asymmetric encryption algorithm** with strictly divi
 - **Public Key \(Held exclusively by the gateway\)**: Used for **JWT token verification and legitimacy validation**\. Possesses only verification capabilities with no token issuance privileges\.
 
 The gateway implements **stateless verification** throughout the process without relying on any third\-party APIs or caching user sessions\. All validation is completed locally via the loaded RSA public key\.
+
+```mermaid
+graph TD
+AuthCenter -- Private Key Sign --> JWT
+JWT -- Token Delivery --> Client
+Client -- Carry JWT --> Gateway
+Gateway -- Public Key Verify --> Check
+Check -- Valid --> Pass
+Check -- Invalid --> Reject
+```
 
 ```mermaid
 graph TD
@@ -102,6 +124,16 @@ The gateway executes a standardized synchronous blocking verification pipeline f
 
 ```mermaid
 graph TD
+Request -- Intercept --> Gateway
+Gateway -- Parse JWT --> Verify
+Verify -- Auth Check --> Permission
+Permission -- Traffic Control --> Flow
+Flow -- Pass --> Release
+Flow -- Fail --> Block
+```
+
+```mermaid
+graph TD
 Req[Client Request] -- 1.Intercept --> G[Gateway Capture Request]
 G -- 2.Parse JWT --> Parse[Resolve Header/Payload/Signature]
 Parse -- 3.Legitimacy Check --> Verify[Signature & Expiration Verify]
@@ -146,8 +178,6 @@ Business -- Return Result --> Gateway
 Gateway -- Unified Response --> Client[End Client]
 ```
 
-**5\. Unified Response Return**: Business execution results are returned to the gateway and responded to clients uniformly by the gateway layer\.
-
 ```mermaid
 graph LR
 A[Gateway] -- Trim Prefix & Forward --> B[Downstream Microservice]
@@ -155,6 +185,14 @@ B -- Trust Gateway Traffic --> C[Parse User Identity from Header]
 C -- No Repeat Security Check --> D[Execute Core Business Logic]
 D -- Business Result --> A
 A -- Unified Response --> E[End Client]```
+
+```mermaid
+graph LR
+Gateway -- Forward Request --> MicroService
+MicroService -- Parse User Info --> Business
+Business -- Return Result --> Gateway
+Gateway -- Response --> Client
+```
 
 ## 4\. Full\-Link Stability and Security Assurance Mechanisms \(Gateway\-Layer Core Guarantees\)
 
@@ -192,8 +230,6 @@ end
 S2 & S4 & T2 & T4 & T6 --> Final[Stable & Secure Microservice System]
 ```
 
-- **Traceable Full Link**: The unified TraceId runs through the gateway and downstream services, enabling rapid positioning of faults at either the gateway layer or business layer\.
-
 ```mermaid
 graph TD
 subgraph Security Protection
@@ -206,6 +242,17 @@ D[Circuit Break & Fault Isolation] -- Prevent Avalanche --> D1[Fault Containment
 E[Consul Dynamic Forwarding] -- Skip Fault Nodes --> E1[High Availability Traffic]
 end
 A1 & B1 & C1 & D1 & E1 --> F[Stable & Secure Microservice Cluster]```
+
+```mermaid
+graph TD
+Verify --> Security
+Rotation --> Security
+Limit --> Stability
+Break --> Stability
+Forward --> Stability
+Security --> Final
+Stability --> Final
+```
 
 ## 5\. Core Summary \(Gateway\-Specific Focus\)
 
