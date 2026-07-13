@@ -1,101 +1,158 @@
-# API网关核心职责、JWT公钥验签原理与上下游请求处理机制详解
+# API Gateway Core Responsibilities, JWT Public Key Verification Principles and Upstream/Downstream Request Processing Mechanisms
 
-<img width="1911" height="668" alt="image" src="https://github.com/user-attachments/assets/86e58ed4-3019-43b5-b055-d59ca2ed4af9" />
+## 1\. API Gateway Core Positioning and Responsibilities \(Gateway\-Specific Focus\)
 
+The **\.NET 10 YARP self\-developed gateway** serves as the **unique entry point for full\-link traffic** in the entire architecture\. All client requests must pass through the gateway for admission control\. The gateway**does not process any business logic** and is fully responsible for all**non\-business cross\-cutting governance, security verification, and traffic forwarding**, acting as the security barrier and traffic scheduling hub for the microservice ecosystem\.
 
+The gateway focuses exclusively on four core capabilities:
 
-# 一、API网关核心定位与核心职责（纯网关聚焦）
+**1\. Identity Security Admission \(Core Capability\)**
 
-本架构中基于 **\.NET 10 YARP 自研网关** 是全链路流量唯一入口，所有客户端请求必须经过网关准入，网关**不处理任何业务逻辑**，全权负责所有**非业务横切治理、安全校验、流量转发**，是微服务体系的安全屏障与流量调度中枢。
+Unifies interception of all requests, completes legal verification of JWT tokens, rejects illegal, expired, and tampered requests, and achieves centralized global authentication and authorization\.
 
-网关核心职责仅聚焦四大核心能力：
+**2\. Full\-Dimensional Traffic Governance**
 
-1. **身份安全准入（核心）**：统一拦截所有请求，完成JWT令牌合法性验签，拒绝非法、过期、篡改请求，实现全局认证授权收口。
+Integrates interface rate limiting, request circuit breaking, and timeout control to block malicious high\-frequency requests and faulty traffic, ensuring the stability of downstream microservices\.
 
-2. **全维度流量治理**：集成接口限流、请求熔断、超时控制，阻挡恶意高频请求、故障流量，保护下游微服务稳定性。
+**3\. Dynamic Traffic Forwarding**
 
-3. **动态流量转发**：基于Consul实时感知下游健康服务实例，动态生成路由，自动完成请求转发、路由前缀裁剪，对客户端透明。
+Perceives healthy downstream service instances in real time via Consul, dynamically generates routing rules, automatically forwards requests and truncates route prefixes, fully transparent to client\-side applications\.
 
-4. **链路观测收口**：统一注入TraceId，记录全链路请求日志、异常日志，统一问题排查入口，下游服务无需重复实现基础观测能力。
+**4\. Unified Link Observability**
 
-# 二、网关JWT公钥验签底层核心原理
+Injects global TraceId uniformly, records full\-link request logs and exception logs, and provides a unified entry for troubleshooting\. Downstream services are exempt from repetitive implementation of basic observability capabilities\.
 
-## 2\.1 密钥体系基础机制
+```mermaid
+graph LR
+A[Client Request] -- Full traffic entry --> B[.NET YARP Gateway]
+B -- 1.Identity Auth --> C[Security Admission]
+B -- 2.Traffic Governance --> D[Rate Limit & Circuit Break]
+B -- 3.Dynamic Routing --> E[Consul Service Discovery]
+B -- 4.Link Observation --> F[TraceId & Logging]
+C & D & E & F -- Valid Traffic --> G[Downstream Microservices]```
 
-整体采用 **RSA非对称加密机制**，严格区分公私钥职责，彻底保障安全：
+## 2\. Underlying Core Principles of Gateway JWT Public Key Verification
 
-- **私钥（仅认证中心持有）**：用于JWT令牌**签发、签名**，绝不对外暴露、不同步、不共享。
+### 2\.1 Basic Key System Mechanism
 
-- **公钥（网关唯一持有）**：用于JWT令牌**验签、合法性校验**，仅具备验证能力，无签发权限。
+The system adopts the **RSA asymmetric encryption algorithm** with strictly divided public and private key responsibilities to ensure maximum security:
 
-网关不依赖任何第三方接口、不缓存用户会话，全程**无状态验签**，仅依赖本地加载的RSA公钥完成校验。
+- **Private Key \(Held exclusively by the authentication center\)**: Used exclusively for **JWT token issuance and signing**\. Never exposed, synchronized, or shared externally\.
 
-## 2\.2 多公钥兼容底层逻辑（架构核心亮点）
+- **Public Key \(Held exclusively by the gateway\)**: Used for **JWT token verification and legitimacy validation**\. Possesses only verification capabilities with no token issuance privileges\.
 
-网关启动阶段会自动加载两套公钥体系，解决密钥轮换断服务问题：
+The gateway implements**stateless verification** throughout the process without relying on any third\-party APIs or caching user sessions\. All validation is completed locally via the loaded RSA public key\.
 
-- **活跃公钥**：校验当前最新签发的JWT令牌，为核心校验密钥，缺失则服务启动失败。
+```mermaid
+graph TD
+A[Authentication Center] -- Hold Private Key --> B[JWT Sign & Issue Token]
+B -- Token Delivery --> C[Client]
+C -- Carry JWT Token --> D[API Gateway]
+D -- Hold Public Key --> E[Stateless Signature Verification]
+E -- Valid --> F[Release Request]
+E -- Invalid --> G[Reject 401]```
 
-- **历史归档公钥**：兼容密钥轮换前签发的未过期旧令牌，保障迭代期间服务无缝可用。
+### 2\.2 Multi\-Public\-Key Compatibility Logic \(Core Architectural Highlight\)
 
-底层原理：JWT签名由私钥唯一生成，签名结果与密钥强绑定。网关通过多组公钥依次校验令牌签名，**任意一组公钥校验通过即判定令牌合法**，实现新旧密钥平滑过渡。
+During startup, the gateway automatically loads a dual public key set to eliminate service interruption caused by key rotation:
 
-## 2\.3 网关完整验签放行流程
+- **Active Public Key**: Validates newly issued JWT tokens and serves as the primary verification key\. Service startup fails if this key is missing\.
 
-客户端每一次请求，网关都会执行标准化校验链路，全程同步阻塞、无遗漏校验：
+- **Legacy Archive Public Key**: Compatibility support for unexpired old tokens issued before key rotation, ensuring zero\-service\-interruption iteration\.
 
-1. **请求拦截**：所有带业务路由的请求被网关拦截，匿名健康检查接口直接放行。
+Underlying principle: JWT signatures are uniquely generated and strongly bound to the corresponding private key\. The gateway verifies token signatures sequentially via multiple public key sets\. A token is deemed valid if **any public key passes verification**, enabling smooth and seamless key migration\.
 
-2. **令牌解析**：从请求Header提取Bearer Token，解析JWT头部、载荷、签名三段数据。
+### 2\.3 Complete Gateway Verification and Release Workflow
 
-3. **合法性校验**：基于本地加载的RSA公钥列表，校验签名是否篡改、签发机构是否合法、令牌是否过期。
+The gateway executes a standardized synchronous blocking verification pipeline for every client request with zero omissions:
 
-4. **策略鉴权**：匹配网关全局授权策略，校验用户是否为已认证合法用户。
+**1\. Request Interception**: All business route requests are intercepted by the gateway; anonymous health check endpoints are directly released\.
 
-5. **流量风控**：执行令牌桶限流、熔断规则，判断当前请求是否超出阈值、下游是否熔断。
+**2\. Token Parsing**: Extracts Bearer Token from request headers and parses the three JWT components: header, payload, and signature\.
 
-6. **请求放行**：所有校验全部通过后，生成全局TraceId，预处理请求参数。
+**3\. Legitimacy Verification**: Validates signature integrity, issuer legitimacy, and token expiration using the locally loaded RSA public key list\.
 
-**校验失败兜底**：签名非法、令牌过期、无权限、限流熔断触发时，网关直接拦截请求，返回401/429等标准错误，**请求不会到达下游微服务**。
+**4\. Policy Authorization**: Matches global gateway authorization policies to verify authenticated user legitimacy\.
 
-# 三、网关放行后，下游微服务处理机制
+**5\. Traffic Risk Control**: Executes token\-bucket rate limiting and circuit\-breaking rules to check for threshold overflow and downstream circuit break status\.
 
-网关完成所有安全、流量校验并放行请求后，下游微服务**无需重复做基础安全校验**，专注处理自身业务逻辑，具体处理机制如下：
+**6\. Request Release**: Generates a global TraceId and preprocesses request parameters only after all verification items pass\.
 
-1. **接收透明请求**：网关自动裁剪路由前缀（如/payment），将标准化接口请求转发至对应后端服务Pod。
+**Failure Fallback Mechanism**: Requests with invalid signatures, expired tokens, insufficient permissions, or triggered rate limiting/circuit breaking are directly rejected by the gateway with standard error codes such as 401/429\. **No invalid requests reach downstream microservices**\.
 
-2. **信任网关流量**：下游服务默认信任网关放行的所有请求，不再重复验签、不再重复限流，减少服务性能损耗。
+```mermaid
+graph TD
+A[Client Request] -- 1.Intercept --> B[Gateway Capture Request]
+B -- 2.Parse Token --> C[Resolve JWT Header/Payload/Signature]
+C -- 3.Verify Legitimacy --> D[Public Key Signature + Expiration Check]
+D -- 4.Policy Auth --> E[User Permission Verification]
+E -- 5.Traffic Control --> F[Rate Limit & Circuit Break Check]
+F -- All Pass --> G[Generate TraceId & Release]
+F -- Any Fail --> H[Return 401/429 Block]```
 
-3. **解析业务身份**：下游服务仅需从网关透传的Token或请求头中，解析用户ID、权限角色等业务身份信息，用于业务权限判断。
+## 3\. Downstream Microservice Processing Mechanism After Gateway Release
 
-4. **执行业务逻辑**：专注完成订单、支付、用户等核心业务处理，无需关注流量安全、链路追踪等基础能力。
+After the gateway completes all security and traffic validations and releases requests, downstream microservices**do not need to repeat basic security checks** and can fully focus on core business logic execution\. The detailed processing mechanism is as follows:
 
-5. **统一结果返回**：业务执行结果原路返回至网关，由网关统一应答客户端。
+**1\. Transparent Request Reception**: The gateway automatically truncates route prefixes \(e\.g\., /payment\), forwards standardized API requests to corresponding backend service pods\.
 
-# 四、全链路稳定性与安全性保障机制（网关层核心保障）
+**2\. Trusted Traffic Ingestion**: Downstream services inherently trust all requests released by the gateway, eliminating redundant verification and rate limiting to reduce performance overhead\.
 
-## 4\.1 安全层面保障
+**3\. Business Identity Parsing**: Downstream services extract business identity information \(user ID, role permissions, etc\.\) from gateway\-passed tokens or request headers for business\-level access control judgment\.
 
-- **最小权限安全**：网关仅持有公钥，无令牌签发能力，即使网关被攻破，攻击者无法伪造合法JWT令牌。
+**4\. Core Business Execution**: Processes core business scenarios including orders, payments, and user management without caring about underlying capabilities such as traffic security and link tracing\.
 
-- **防篡改防伪造**：RSA签名机制保证，只要私钥不泄露，任何篡改JWT载荷、伪造令牌的请求都会被网关拦截。
+**4\. Core Business Execution**: Processes core business scenarios including orders, payments, and user management without caring about underlying capabilities such as traffic security and link tracing\.
 
-- **密钥兼容高可用**：多公钥机制支撑密钥动态轮换，无需停机、不影响用户正常请求。
+**5\. Unified Response Return**: Business execution results are returned to the gateway and responded to clients uniformly by the gateway layer\.
 
-- **全局安全收口**：所有外网请求统一校验，杜绝下游服务暴露、裸奔访问的安全风险。
+```mermaid
+graph LR
+A[Gateway] -- Trim Prefix & Forward --> B[Downstream Microservice]
+B -- Trust Gateway Traffic --> C[Parse User Identity from Header]
+C -- No Repeat Security Check --> D[Execute Core Business Logic]
+D -- Business Result --> A
+A -- Unified Response --> E[End Client]```
 
-## 4\.2 流量与稳定性保障
+## 4\. Full\-Link Stability and Security Assurance Mechanisms \(Gateway\-Layer Core Guarantees\)
 
-- **故障隔离**：YARP内置熔断、超时机制，下游服务异常时网关快速失败，避免故障扩散、雪崩。
+### 4\.1 Security Assurance Mechanisms
 
-- **流量削峰**：网关全局限流，阻挡恶意爬虫、高频请求，保护下游服务负载平稳。
+- **Least Privilege Security**: The gateway only holds public keys without token signing privileges\. Even if the gateway is compromised, attackers cannot forge valid JWT tokens\.
 
-- **动态容错转发**：实时监听Consul健康实例，自动剔除故障节点，仅将请求转发至健康服务Pod。
+- **Tamper and Forgery Resistance**: The RSA signature mechanism ensures that any tampering with JWT payloads or token forgery is intercepted by the gateway, provided the private key remains undisclosed\.
 
-- **链路可追溯**：统一TraceId贯穿网关与下游服务，异常问题可快速定位是网关层还是业务层问题。
+- **Highly Available Key Compatibility**: The multi\-public\-key mechanism supports dynamic key rotation without service downtime or interruption to normal user requests\.
 
-# 五、核心总结（纯网关聚焦）
+- **Global Security Consolidation**: Uniform verification of all external network requests eliminates security risks caused by exposed or unprotected downstream service endpoints\.
 
-API网关是整个微服务体系的**安全防火墙\+流量调度中枢**，核心价值是**将所有非业务通用能力统一收口**。基于RSA非对称公钥验签实现无状态、高安全的全局身份认证，通过多公钥机制解决密钥迭代兼容问题；所有请求经过网关层层校验、过滤、治理后，仅合法、合规、健康的流量会被放行至下游微服务。下游服务无需关注安全、流量、观测等基础能力，专注业务实现，同时依托网关的故障隔离、流量防护、动态调度能力，整体微服务体系实现了安全可控、稳定可用、职责解耦的核心架构目标。
+### 4\.2 Traffic and Stability Assurance Mechanisms
 
-> 
+- **Fault Isolation**: YARP built\-in circuit breaking and timeout mechanisms enable fast failure responses during downstream service anomalies, preventing fault propagation and service avalanche\.
+
+- **Traffic Peak Shaving**: Global gateway rate limiting blocks malicious crawlers and burst high\-frequency requests, stabilizing downstream service load\.
+
+- **Dynamic Fault\-Tolerant Forwarding**: Monitors Consul healthy instance status in real time, automatically excludes faulty nodes, and forwards traffic only to healthy service pods\.
+
+- **Traceable Full Link**: The unified TraceId runs through the gateway and downstream services, enabling rapid positioning of faults at either the gateway layer or business layer\.
+
+```mermaid
+graph TD
+subgraph Security Protection
+A[RSA Asymmetric Verification] -- Anti-Tamper/Forgery --> A1[Global Security Entry]
+B[Multi-Key Rotation] -- Zero Downtime Update --> B1[High Available Auth]
+end
+subgraph Traffic Stability
+C[Rate Limit & Peak Shaving] -- Block Malicious Traffic --> C1[Load Stabilization]
+D[Circuit Break & Fault Isolation] -- Prevent Avalanche --> D1[Fault Containment]
+E[Consul Dynamic Forwarding] -- Skip Fault Nodes --> E1[High Availability Traffic]
+end
+A1 & B1 & C1 & D1 & E1 --> F[Stable & Secure Microservice Cluster]```
+
+## 5\. Core Summary \(Gateway\-Specific Focus\)
+
+The API gateway acts as the **security firewall and traffic scheduling hub** for the entire microservice architecture\. Its core value lies in **unified convergence of all non\-business generic capabilities**\. It implements stateless, high\-security global authentication based on RSA asymmetric public key verification and resolves key iteration compatibility issues via the multi\-public\-key mechanism\.
+
+All requests undergo layered verification, filtering, and governance at the gateway\. Only legitimate, compliant, and healthy traffic is forwarded to downstream microservices\. Downstream services are completely decoupled from underlying security, traffic, and observability capabilities and focus solely on business implementation\. Leveraging the gateway’s fault isolation, traffic protection, and dynamic scheduling capabilities, the overall microservice architecture achieves core architectural goals including security controllability, operational stability, and clear responsibility decoupling\.
+
+> （注：部分内容可能由 AI 生成）
