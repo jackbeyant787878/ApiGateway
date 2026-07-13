@@ -24,6 +24,16 @@ Injects global TraceId uniformly, records full\-link request logs and exception 
 
 ```mermaid
 graph LR
+Client[Client Request] -- Full Traffic Entry --> Gateway[.NET YARP Gateway]
+Gateway -- Identity Security Admission --> Security[Security Control]
+Gateway -- Traffic Governance --> Traffic[Rate Limit & Circuit Break]
+Gateway -- Dynamic Forwarding --> Discovery[Consul Discovery]
+Gateway -- Link Observability --> Trace[TraceId & Logging]
+Security & Traffic & Discovery & Trace -- Valid Traffic --> Service[Downstream Microservices]
+```
+
+```mermaid
+graph LR
 A[Client Request] -- Full traffic entry --> B[.NET YARP Gateway]
 B -- 1.Identity Auth --> C[Security Admission]
 B -- 2.Traffic Governance --> D[Rate Limit & Circuit Break]
@@ -41,7 +51,17 @@ The system adopts the **RSA asymmetric encryption algorithm** with strictly divi
 
 - **Public Key \(Held exclusively by the gateway\)**: Used for **JWT token verification and legitimacy validation**\. Possesses only verification capabilities with no token issuance privileges\.
 
-The gateway implements**stateless verification** throughout the process without relying on any third\-party APIs or caching user sessions\. All validation is completed locally via the loaded RSA public key\.
+The gateway implements **stateless verification** throughout the process without relying on any third\-party APIs or caching user sessions\. All validation is completed locally via the loaded RSA public key\.
+
+```mermaid
+graph TD
+AuthCenter[Authentication Center] -- Private Key Sign --> JWT[Issue JWT Token]
+JWT -- Token Delivery --> Client[Client Side]
+Client -- Bring JWT --> Gateway[API Gateway]
+Gateway -- Local Public Key Verify --> Check{Signature Valid?}
+Check -- Yes --> Pass[Release Request]
+Check -- No --> Reject[Reject 401 Unauthorized]
+```
 
 ```mermaid
 graph TD
@@ -82,6 +102,17 @@ The gateway executes a standardized synchronous blocking verification pipeline f
 
 ```mermaid
 graph TD
+Req[Client Request] -- 1.Intercept --> G[Gateway Capture Request]
+G -- 2.Parse JWT --> Parse[Resolve Header/Payload/Signature]
+Parse -- 3.Legitimacy Check --> Verify[Signature & Expiration Verify]
+Verify -- 4.Policy Auth --> Auth[User Permission Verify]
+Auth -- 5.Traffic Control --> Flow[Rate Limit & Circuit Break]
+Flow -- All Pass --> OK[Generate TraceId & Release]
+Flow -- Any Failed --> Fail[Return 401/429 Block]
+```
+
+```mermaid
+graph TD
 A[Client Request] -- 1.Intercept --> B[Gateway Capture Request]
 B -- 2.Parse Token --> C[Resolve JWT Header/Payload/Signature]
 C -- 3.Verify Legitimacy --> D[Public Key Signature + Expiration Check]
@@ -103,6 +134,17 @@ After the gateway completes all security and traffic validations and releases re
 **4\. Core Business Execution**: Processes core business scenarios including orders, payments, and user management without caring about underlying capabilities such as traffic security and link tracing\.
 
 **4\. Core Business Execution**: Processes core business scenarios including orders, payments, and user management without caring about underlying capabilities such as traffic security and link tracing\.
+
+**5\. Unified Response Return**: Business execution results are returned to the gateway and responded to clients uniformly by the gateway layer\.
+
+```mermaid
+graph LR
+Gateway[API Gateway] -- Trim Prefix & Forward --> Micro[Downstream Microservice]
+Micro -- Trust Gateway Traffic --> Identity[Parse User Identity]
+Identity -- No Repeat Security Check --> Business[Execute Business Logic]
+Business -- Return Result --> Gateway
+Gateway -- Unified Response --> Client[End Client]
+```
 
 **5\. Unified Response Return**: Business execution results are returned to the gateway and responded to clients uniformly by the gateway layer\.
 
@@ -133,6 +175,22 @@ A -- Unified Response --> E[End Client]```
 - **Traffic Peak Shaving**: Global gateway rate limiting blocks malicious crawlers and burst high\-frequency requests, stabilizing downstream service load\.
 
 - **Dynamic Fault\-Tolerant Forwarding**: Monitors Consul healthy instance status in real time, automatically excludes faulty nodes, and forwards traffic only to healthy service pods\.
+
+- **Traceable Full Link**: The unified TraceId runs through the gateway and downstream services, enabling rapid positioning of faults at either the gateway layer or business layer\.
+
+```mermaid
+graph TD
+subgraph Security
+S1[RSA Asymmetric Verify] -- Anti-Tamper & Forgery --> S2[Global Security Entry]
+S3[Multi-Key Rotation] -- Zero Downtime Upgrade --> S4[High Available Auth]
+end
+subgraph Traffic Stability
+T1[Rate Limit & Peak Shaving] -- Protect Service Load --> T2[Malicious Traffic Block]
+T3[Circuit Breaking] -- Fault Isolation --> T4[Prevent Service Avalanche]
+T5[Consul Dynamic Forward] -- Eliminate Fault Nodes --> T6[Stable Traffic Dispatching]
+end
+S2 & S4 & T2 & T4 & T6 --> Final[Stable & Secure Microservice System]
+```
 
 - **Traceable Full Link**: The unified TraceId runs through the gateway and downstream services, enabling rapid positioning of faults at either the gateway layer or business layer\.
 
