@@ -38,4 +38,6 @@ Officially maintained by Microsoft and natively built for .NET 10, YARP signific
 - **Core advantages**: unified technology stack with zero additional learning curve, ultra-simple containerized deployment, hot configuration reloads, native high-concurrency stability, customizable canary release/rate limiting/circuit breaking, and continuous iteration aligned with .NET releases.
 
 ## 6. Final Selection Conclusion
+<img width="1050" height="485" alt="image" src="https://github.com/user-attachments/assets/a751484d-8c99-4637-8c60-1e7a4244cfbf" />
+
 YARP is the **optimal gateway choice** for .NET 10 enterprise microservice architectures. It effectively eliminates the performance and iteration risks of Ocelot and the technology stack fragmentation of Kong. With sufficient performance headroom, it minimizes development, operational, and iteration costs, aligning with the enterprise's long-term cloud-native and unified technology stack goals.
