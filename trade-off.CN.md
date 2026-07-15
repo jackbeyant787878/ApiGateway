@@ -19,10 +19,11 @@
 | 运维复杂度分(10分) | 7.0 | 4.0 | 9.0 |
 | 协议支持 | 仅HTTP/2 | 全协议支持 | HTTP/2、HTTP/3全覆盖 |
 
-<img width="1009" height="508" alt="image" src="https://github.com/user-attachments/assets/6c205a75-ef25-4c8d-8718-1163ad494cf5" />
+
 
 
 ## 四、核心 TradeOff 取舍逻辑
+<img width="1009" height="508" alt="image" src="https://github.com/user-attachments/assets/6c205a75-ef25-4c8d-8718-1163ad494cf5" />
 ### 4.1 放弃 Ocelot
 Ocelot 入门简单、原生 .NET 开发，但存在两大致命问题：高并发性能差、阻塞率高，无法承载企业大流量业务；社区长期停滞不更新，不兼容 .NET10 新特性，存在架构迭代风险，不适合长期作为企业流量网关底座。
 
@@ -39,4 +40,6 @@ YARP 由微软官方维护，原生适配 .NET10，性能远超 Ocelot、接近 
 - **核心优势**：技术栈统一无学习成本、容器化部署极简、配置热更新、原生高并发稳定、支持灰度/限流/熔断自定义、跟随 .NET 版本持续迭代。
 
 ## 六、最终选型结论
+<img width="1006" height="496" alt="image" src="https://github.com/user-attachments/assets/826b006a-4ca2-486a-88d8-cfae278657ef" />
+
 YARP 是 .NET10 企业级微服务架构下的**最优网关选型**。完美规避 Ocelot 性能与迭代风险、Kong 技术栈割裂问题，在性能足够的前提下，最大化降低开发、运维、迭代成本，适配企业云原生、统一技术栈的长期架构建设目标。
