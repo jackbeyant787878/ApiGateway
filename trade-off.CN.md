@@ -40,6 +40,7 @@ YARP 由微软官方维护，原生适配 .NET10，性能远超 Ocelot、接近 
 - **核心优势**：技术栈统一无学习成本、容器化部署极简、配置热更新、原生高并发稳定、支持灰度/限流/熔断自定义、跟随 .NET 版本持续迭代。
 
 ## 六、最终选型结论
-<img width="1006" height="496" alt="image" src="https://github.com/user-attachments/assets/826b006a-4ca2-486a-88d8-cfae278657ef" />
+<img width="1043" height="499" alt="image" src="https://github.com/user-attachments/assets/f893e7cd-2c31-4c71-b2a0-69369437aeaa" />
+
 
 YARP 是 .NET10 企业级微服务架构下的**最优网关选型**。完美规避 Ocelot 性能与迭代风险、Kong 技术栈割裂问题，在性能足够的前提下，最大化降低开发、运维、迭代成本，适配企业云原生、统一技术栈的长期架构建设目标。
