@@ -19,6 +19,9 @@
 | 运维复杂度分(10分) | 7.0 | 4.0 | 9.0 |
 | 协议支持 | 仅HTTP/2 | 全协议支持 | HTTP/2、HTTP/3全覆盖 |
 
+<img width="1009" height="508" alt="image" src="https://github.com/user-attachments/assets/6c205a75-ef25-4c8d-8718-1163ad494cf5" />
+
+
 ## 四、核心 TradeOff 取舍逻辑
 ### 4.1 放弃 Ocelot
 Ocelot 入门简单、原生 .NET 开发，但存在两大致命问题：高并发性能差、阻塞率高，无法承载企业大流量业务；社区长期停滞不更新，不兼容 .NET10 新特性，存在架构迭代风险，不适合长期作为企业流量网关底座。
