@@ -22,6 +22,8 @@ Traditional .NET gateways such as Ocelot suffer from pronounced performance bott
 | Protocol Support | HTTP/2 only | Full protocol support | Full HTTP/2 and HTTP/3 coverage |
 
 ## 4. Core Trade-Off Decision Logic
+<img width="993" height="528" alt="image" src="https://github.com/user-attachments/assets/5550188e-d2a6-48e4-906e-ceeaad934250" />
+
 ### 4.1 Why Ocelot is Rejected
 Ocelot is straightforward to adopt and built natively for .NET, but it has two critical limitations. First, its high-concurrency performance is inadequate with a high blocking rate, which cannot support enterprise high-traffic workloads. Second, long-term community stagnation and lack of updates leave it incompatible with .NET 10 features, introducing architecture iteration risks. It is unsuitable as a long-term enterprise traffic gateway foundation.
 
